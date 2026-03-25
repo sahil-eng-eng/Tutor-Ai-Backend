@@ -1,0 +1,840 @@
+﻿python : D:\tutor\venv\lib\site-packages\pytest_asyncio\plugin.py:207: 
+PytestDeprecationWarning: The configuration option 
+"asyncio_default_fixture_loop_scope" is unset.
+At line:1 char:60
++ ... b -Force }; python -m pytest tests/test_sessions.py -q --tb=line 2>&1 ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (D:\tutor\venv\l...cope" is unset. 
+   :String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+The event loop scope for asynchronous fixtures will default to the fixture 
+caching scope. Future versions of pytest-asyncio will default the loop scope 
+for asynchronous fixtures to function scope. Set the default fixture loop 
+scope explicitly in order to avoid unexpected behavior in the future. Valid 
+fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts =============================
+platform win32 -- Python 3.10.11, pytest-8.3.4, pluggy-1.6.0
+rootdir: D:\tutor
+configfile: pyproject.toml
+plugins: anyio-4.12.1, asyncio-0.25.0, cov-6.0.0
+asyncio: mode=auto, asyncio_default_fixture_loop_scope=None
+collected 24 items
+
+tests\test_sessions.py .F.FFFFFF....FFEEEEFEEFFEF.                       [100%]
+
+=================================== ERRORS ====================================
+_ ERROR at teardown of TestSessions.test_create_session_college_student_missing_fields _
+E   sqlite3.OperationalError: no such table: session_configs
+
+The above exception was the direct cause of the following exception:
+E   sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: session_configs
+    [SQL: 
+    DROP TABLE session_configs]
+    (Background on this error at: https://sqlalche.me/e/20/e3q8)
+_ ERROR at setup of TestSessions.test_create_session_working_professional_flow _
+E   sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+E   sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+    [SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+    FROM users 
+    WHERE users.email = ?]
+    [parameters: ('testuser_fc4ef52d@example.com',)]
+    (Background on this error at: https://sqlalche.me/e/20/e3q8)
+----------------------------- Captured log setup ------------------------------
+ERROR    ai_tutor:exception_handlers.py:80 Unhandled exception: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_fc4ef52d@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 185, in __call__
+    with collapse_excgroups():
+  File "C:\Users\Dell\.pyenv\pyenv-win\versions\3.10.11\lib\contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "D:\tutor\venv\lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 187, in __call__
+    response = await self.dispatch_func(request, call_next)
+  File "D:\tutor\app\middleware\logging_middleware.py", line 13, in dispatch
+    response = await call_next(request)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 163, in call_next
+    raise app_exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "D:\tutor\app\api\v1\auth.py", line 34, in register
+    result = await service.register(data)
+  File "D:\tutor\app\services\auth_service.py", line 46, in register
+    existing = await self._db.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 461, in execute
+    result = await greenlet_spawn(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2362, in execute
+    return self._execute_internal(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2247, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\context.py", line 305, in orm_execute_statement
+    result = conn.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1418, in execute
+    return meth(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\sql\elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_fc4ef52d@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+_ ERROR at teardown of TestSessions.test_create_session_working_professional_flow _
+E   sqlite3.OperationalError: no such table: whiteboard_data
+
+The above exception was the direct cause of the following exception:
+E   sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: whiteboard_data
+    [SQL: 
+    DROP TABLE whiteboard_data]
+    (Background on this error at: https://sqlalche.me/e/20/e3q8)
+----------------------------- Captured log setup ------------------------------
+ERROR    ai_tutor:exception_handlers.py:80 Unhandled exception: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_fc4ef52d@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 185, in __call__
+    with collapse_excgroups():
+  File "C:\Users\Dell\.pyenv\pyenv-win\versions\3.10.11\lib\contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "D:\tutor\venv\lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 187, in __call__
+    response = await self.dispatch_func(request, call_next)
+  File "D:\tutor\app\middleware\logging_middleware.py", line 13, in dispatch
+    response = await call_next(request)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 163, in call_next
+    raise app_exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "D:\tutor\app\api\v1\auth.py", line 34, in register
+    result = await service.register(data)
+  File "D:\tutor\app\services\auth_service.py", line 46, in register
+    existing = await self._db.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 461, in execute
+    result = await greenlet_spawn(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2362, in execute
+    return self._execute_internal(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2247, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\context.py", line 305, in orm_execute_statement
+    result = conn.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1418, in execute
+    return meth(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\sql\elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_fc4ef52d@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+_ ERROR at setup of TestSessions.test_create_session_working_professional_missing_fields _
+E   sqlite3.OperationalError: table tutor_sessions already exists
+
+The above exception was the direct cause of the following exception:
+E   sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) table tutor_sessions already exists
+    [SQL: 
+    CREATE TABLE tutor_sessions (
+    	id CHAR(32) NOT NULL, 
+    	user_id CHAR(32) NOT NULL, 
+    	playlist_id CHAR(32), 
+    	playlist_order INTEGER, 
+    	concept_name VARCHAR(500) NOT NULL, 
+    	description TEXT, 
+    	mood VARCHAR(13) NOT NULL, 
+    	model_personality VARCHAR(13) NOT NULL, 
+    	language VARCHAR(50) NOT NULL, 
+    	duration_type VARCHAR(13) NOT NULL, 
+    	duration_minutes INTEGER, 
+    	voice_id CHAR(32), 
+    	session_mode VARCHAR(17) NOT NULL, 
+    	study_level VARCHAR(12) NOT NULL, 
+    	entire_session_type VARCHAR(14) NOT NULL, 
+    	status VARCHAR(11) NOT NULL, 
+    	board_id CHAR(32), 
+    	subject_id CHAR(32), 
+    	chapter_id CHAR(32), 
+    	topic_id CHAR(32), 
+    	university VARCHAR(255), 
+    	course VARCHAR(255), 
+    	semester INTEGER, 
+    	professional_background VARCHAR(255), 
+    	user_profession VARCHAR(50), 
+    	ai_model_used VARCHAR(100), 
+    	system_prompt_snapshot TEXT, 
+    	session_evaluation JSON, 
+    	total_duration_seconds INTEGER, 
+    	pulse_average FLOAT, 
+    	pulse_percentage FLOAT NOT NULL, 
+    	completion_percentage FLOAT NOT NULL, 
+    	started_at DATETIME, 
+    	completed_at DATETIME, 
+    	created_at DATETIME NOT NULL, 
+    	updated_at DATETIME NOT NULL, 
+    	PRIMARY KEY (id), 
+    	FOREIGN KEY(user_id) REFERENCES users (id) ON DELETE CASCADE, 
+    	FOREIGN KEY(playlist_id) REFERENCES session_playlists (id) ON DELETE SET NULL, 
+    	FOREIGN KEY(voice_id) REFERENCES voice_profiles (id), 
+    	FOREIGN KEY(board_id) REFERENCES curriculum_boards (id), 
+    	FOREIGN KEY(subject_id) REFERENCES curriculum_subjects (id), 
+    	FOREIGN KEY(chapter_id) REFERENCES curriculum_chapters (id), 
+    	FOREIGN KEY(topic_id) REFERENCES curriculum_topics (id)
+    )
+    
+    ]
+    (Background on this error at: https://sqlalche.me/e/20/e3q8)
+___________ ERROR at teardown of TestSessions.test_preview_session ____________
+E   sqlite3.OperationalError: no such table: question_banks
+
+The above exception was the direct cause of the following exception:
+E   sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: question_banks
+    [SQL: 
+    DROP TABLE question_banks]
+    (Background on this error at: https://sqlalche.me/e/20/e3q8)
+------------------------------ Captured log call ------------------------------
+ERROR    ai_tutor:exception_handlers.py:80 Unhandled exception: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.id = ?]
+[parameters: ('430e691b86014ef78d6543c3a9551662',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 185, in __call__
+    with collapse_excgroups():
+  File "C:\Users\Dell\.pyenv\pyenv-win\versions\3.10.11\lib\contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "D:\tutor\venv\lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 187, in __call__
+    response = await self.dispatch_func(request, call_next)
+  File "D:\tutor\app\middleware\logging_middleware.py", line 13, in dispatch
+    response = await call_next(request)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 163, in call_next
+    raise app_exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 291, in app
+    solved_result = await solve_dependencies(
+  File "D:\tutor\venv\lib\site-packages\fastapi\dependencies\utils.py", line 638, in solve_dependencies
+    solved = await call(**solved_result.values)
+  File "D:\tutor\app\dependencies.py", line 30, in get_current_user
+    result = await db.execute(select(User).where(User.id == UUID(user_id)))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 461, in execute
+    result = await greenlet_spawn(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2362, in execute
+    return self._execute_internal(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2247, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\context.py", line 305, in orm_execute_statement
+    result = conn.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1418, in execute
+    return meth(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\sql\elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.id = ?]
+[parameters: ('430e691b86014ef78d6543c3a9551662',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+________ ERROR at setup of TestSessions.test_update_session_evaluation ________
+E   sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+E   sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+    [SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+    FROM users 
+    WHERE users.email = ?]
+    [parameters: ('testuser_bd325a51@example.com',)]
+    (Background on this error at: https://sqlalche.me/e/20/e3q8)
+----------------------------- Captured log setup ------------------------------
+ERROR    ai_tutor:exception_handlers.py:80 Unhandled exception: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_bd325a51@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 185, in __call__
+    with collapse_excgroups():
+  File "C:\Users\Dell\.pyenv\pyenv-win\versions\3.10.11\lib\contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "D:\tutor\venv\lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 187, in __call__
+    response = await self.dispatch_func(request, call_next)
+  File "D:\tutor\app\middleware\logging_middleware.py", line 13, in dispatch
+    response = await call_next(request)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 163, in call_next
+    raise app_exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "D:\tutor\app\api\v1\auth.py", line 34, in register
+    result = await service.register(data)
+  File "D:\tutor\app\services\auth_service.py", line 46, in register
+    existing = await self._db.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 461, in execute
+    result = await greenlet_spawn(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2362, in execute
+    return self._execute_internal(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2247, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\context.py", line 305, in orm_execute_statement
+    result = conn.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1418, in execute
+    return meth(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\sql\elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_bd325a51@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+___ ERROR at setup of TestSessions.test_end_already_completed_session_fails ___
+E   sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+E   sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+    [SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+    FROM users 
+    WHERE users.email = ?]
+    [parameters: ('testuser_be2ac0b5@example.com',)]
+    (Background on this error at: https://sqlalche.me/e/20/e3q8)
+----------------------------- Captured log setup ------------------------------
+ERROR    ai_tutor:exception_handlers.py:80 Unhandled exception: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_be2ac0b5@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlite3.OperationalError: no such table: users
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\errors.py", line 165, in __call__
+    await self.app(scope, receive, _send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 185, in __call__
+    with collapse_excgroups():
+  File "C:\Users\Dell\.pyenv\pyenv-win\versions\3.10.11\lib\contextlib.py", line 153, in __exit__
+    self.gen.throw(typ, value, traceback)
+  File "D:\tutor\venv\lib\site-packages\starlette\_utils.py", line 82, in collapse_excgroups
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 187, in __call__
+    response = await self.dispatch_func(request, call_next)
+  File "D:\tutor\app\middleware\logging_middleware.py", line 13, in dispatch
+    response = await call_next(request)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 163, in call_next
+    raise app_exc
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\base.py", line 149, in coro
+    await self.app(scope, receive_or_disconnect, send_no_error)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\cors.py", line 85, in __call__
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\middleware\exceptions.py", line 62, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 715, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 735, in app
+    await route.handle(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 288, in handle
+    await self.app(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 76, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "D:\tutor\venv\lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "D:\tutor\venv\lib\site-packages\starlette\routing.py", line 73, in app
+    response = await f(request)
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 301, in app
+    raw_response = await run_endpoint_function(
+  File "D:\tutor\venv\lib\site-packages\fastapi\routing.py", line 212, in run_endpoint_function
+    return await dependant.call(**values)
+  File "D:\tutor\app\api\v1\auth.py", line 34, in register
+    result = await service.register(data)
+  File "D:\tutor\app\services\auth_service.py", line 46, in register
+    existing = await self._db.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\ext\asyncio\session.py", line 461, in execute
+    result = await greenlet_spawn(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 201, in greenlet_spawn
+    result = context.throw(*sys.exc_info())
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2362, in execute
+    return self._execute_internal(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\session.py", line 2247, in _execute_internal
+    result: Result[Any] = compile_state_cls.orm_execute_statement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\orm\context.py", line 305, in orm_execute_statement
+    result = conn.execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1418, in execute
+    return meth(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\sql\elements.py", line 515, in _execute_on_connection
+    return connection._execute_clauseelement(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1640, in _execute_clauseelement
+    ret = self._execute_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1846, in _execute_context
+    return self._exec_single_context(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1986, in _exec_single_context
+    self._handle_dbapi_exception(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 2355, in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\base.py", line 1967, in _exec_single_context
+    self.dialect.do_execute(
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\engine\default.py", line 941, in do_execute
+    cursor.execute(statement, parameters)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 147, in execute
+    self._adapt_connection._handle_exception(error)
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 298, in _handle_exception
+    raise error
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\dialects\sqlite\aiosqlite.py", line 129, in execute
+    self.await_(_cursor.execute(operation, parameters))
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 132, in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+  File "D:\tutor\venv\lib\site-packages\sqlalchemy\util\_concurrency_py3k.py", line 196, in greenlet_spawn
+    value = await result
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 48, in execute
+    await self._execute(self._cursor.execute, sql, parameters)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\cursor.py", line 40, in _execute
+    return await self._conn._execute(fn, *args, **kwargs)
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 132, in _execute
+    return await future
+  File "D:\tutor\venv\lib\site-packages\aiosqlite\core.py", line 115, in run
+    result = function()
+sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+[SQL: SELECT users.id, users.email, users.password_hash, users.full_name, users.user_type, users.age, users.grade, users.board, users.institution, users.preferred_language, users.bio, users.is_active, users.is_verified, users.verification_code, users.verification_code_expires, users.reset_password_token, users.reset_password_expires, users.totp_secret, users.is_2fa_enabled, users.created_at, users.updated_at 
+FROM users 
+WHERE users.email = ?]
+[parameters: ('testuser_be2ac0b5@example.com',)]
+(Background on this error at: https://sqlalche.me/e/20/e3q8)
+================================== FAILURES ===================================
+D:\tutor\tests\test_sessions.py:37: assert 401 == 200
+D:\tutor\tests\test_sessions.py:52: assert 401 == 200
+D:\tutor\tests\test_sessions.py:60: assert 401 == 200
+D:\tutor\tests\test_sessions.py:69: assert 401 == 200
+D:\tutor\tests\test_sessions.py:78: assert 401 == 200
+D:\tutor\tests\test_sessions.py:86: assert 401 == 200
+D:\tutor\tests\test_sessions.py:98: assert 401 == 200
+D:\tutor\venv\lib\site-packages\aiosqlite\core.py:115: sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: tutor_sessions
+D:\tutor\tests\test_sessions.py:154: assert 401 == 422
+D:\tutor\venv\lib\site-packages\aiosqlite\core.py:115: sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) no such table: users
+D:\tutor\tests\test_sessions.py:211: TypeError: 'NoneType' object is not subscriptable
+D:\tutor\tests\test_sessions.py:226: assert 401 == 200
+D:\tutor\tests\test_sessions.py:252: assert 401 == 400
+============================== warnings summary ===============================
+tests/test_sessions.py::TestSessions::test_create_session
+  D:\tutor\venv\lib\site-packages\pytest_asyncio\plugin.py:854: DeprecationWarning: The event_loop fixture provided by pytest-asyncio has been redefined in
+  D:\tutor\tests\conftest.py:35
+  Replacing the event_loop fixture with a custom implementation is deprecated
+  and will lead to errors in the future.
+  If you want to request an asyncio event loop with a scope other than function
+  scope, use the "scope" argument to the asyncio mark when marking the tests.
+  If you want to return different types of event loops, use the event_loop_policy
+  fixture.
+  
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_sessions.py::TestSessions::test_list_sessions - assert 401 ...
+FAILED tests/test_sessions.py::TestSessions::test_get_session_detail - assert...
+FAILED tests/test_sessions.py::TestSessions::test_start_session - assert 401 ...
+FAILED tests/test_sessions.py::TestSessions::test_pause_session - assert 401 ...
+FAILED tests/test_sessions.py::TestSessions::test_complete_session - assert 4...
+FAILED tests/test_sessions.py::TestSessions::test_cancel_session - assert 401...
+FAILED tests/test_sessions.py::TestSessions::test_update_session_config - ass...
+FAILED tests/test_sessions.py::TestSessions::test_create_session_college_student_flow
+FAILED tests/test_sessions.py::TestSessions::test_create_session_college_student_missing_fields
+FAILED tests/test_sessions.py::TestSessions::test_preview_session - sqlalchem...
+FAILED tests/test_sessions.py::TestSessions::test_start_session_creates_segments
+FAILED tests/test_sessions.py::TestSessions::test_end_session_with_goodbye - ...
+FAILED tests/test_sessions.py::TestSessions::test_cannot_update_evaluation_after_start
+ERROR tests/test_sessions.py::TestSessions::test_create_session_college_student_missing_fields
+ERROR tests/test_sessions.py::TestSessions::test_create_session_working_professional_flow
+ERROR tests/test_sessions.py::TestSessions::test_create_session_working_professional_flow
+ERROR tests/test_sessions.py::TestSessions::test_create_session_working_professional_missing_fields
+ERROR tests/test_sessions.py::TestSessions::test_preview_session - sqlalchemy...
+ERROR tests/test_sessions.py::TestSessions::test_update_session_evaluation - ...
+ERROR tests/test_sessions.py::TestSessions::test_end_already_completed_session_fails
+======== 13 failed, 7 passed, 1 warning, 7 errors in 241.60s (0:04:01) ========
