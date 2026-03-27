@@ -1,8 +1,11 @@
 ﻿from uuid import UUID
 from typing import Optional
 import json
+import logging
 
 from fastapi import APIRouter, Depends, Query, Request
+
+logger = logging.getLogger("ai_tutor")
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -249,6 +252,7 @@ async def stream_segment_teaching(
         except BadRequestException as exc:
             yield f"data: {json.dumps({'type': 'error', 'code': 'bad_request', 'message': str(exc)})}\n\n"
         except Exception:
+            logger.exception("Unhandled error in stream_segment_teaching (session=%s, segment=%d)", session_id, segment_order)
             yield f"data: {json.dumps({'type': 'error', 'code': 'server_error', 'message': 'An unexpected error occurred'})}\n\n"
 
     return StreamingResponse(

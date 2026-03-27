@@ -1,11 +1,21 @@
 """
 parse_script_to_sse_events — converts a saved content_script into structured SSE data events.
 
-Script markup conventions handled:
-  [warm], [curious], [calm], [excited], [serious], [friendly]  → emotion events
-  <pause:400ms>                                                 → pause events
-  [ANIMATION: type=X, description=Y]                           → whiteboard events
-  Plain sentences (ending with . ! ? … or line-end)            → text events
+Two formats are supported:
+
+NEW FORMAT (structured JSON blocks):
+  content_script is a JSON string with the shape:
+    { "topic": "...", "blocks": [ { "id": "b1", "sections": [...] } ] }
+  Emits: segment_start, block_start, section_start, text, list_start,
+         list_item, list_end, steps_start, step, steps_end, table_start,
+         table_row, table_end, tabs_start, tab_start, tab_end, tabs_end,
+         accordion, question, summary, visual_hint, section_end, block_end,
+         pause, segment_end, [session_end]
+
+LEGACY FORMAT (speech-first text script):
+  content_script is a plain text string with inline markup:
+    [emotion_tag], <pause:Xms>, [ANIMATION: type=X, description=Y], free text
+  Emits: segment_start, emotion, pause, text, whiteboard, segment_end, [session_end]
 """
 
 import asyncio
@@ -14,30 +24,28 @@ import re
 from typing import AsyncGenerator
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
 def _emit(payload: dict) -> str:
+    """Serialise a payload dict as an SSE data line."""
     return f"data: {json.dumps(payload)}\n\n"
 
 
 VALID_EMOTIONS = {"warm", "curious", "calm", "excited", "serious", "friendly", "neutral"}
 
-# Matches (in order of precedence):
-#   1. [ANIMATION: ...] block
-#   2. <pause:Xms> marker
-#   3. [emotion_tag] (single word in brackets)
-#   4. A sentence ending with punctuation (.!?…)
-#   5. Fallback: non-empty text run (no punctuation end)
-#
-# Each alternative starts with a non-whitespace anchor so finditer()
-# naturally skips whitespace between tokens.
+# ── Legacy text parser tokens ─────────────────────────────────────────────────
+
 _TOKEN_RE = re.compile(
-    r"(\[ANIMATION:[^\]]*\])"                  # group 1: animation block
-    r"|(<pause:\d+(?:\.\d+)?ms>)"              # group 2: pause marker
-    r"|(\[[a-zA-Z_]+\])"                       # group 3: potential emotion tag
-    r"|([^<\[\]\s][^<\[\]\n]*?[.!?…])"         # group 4: sentence (lazy, ends at first punct)
-    r"|([^<\[\]\s][^<\[\]\n]*)",               # group 5: fallback text run
+    r"(\[ANIMATION:[^\]]*\])"                   # group 1: animation block
+    r"|(<pause:\d+(?:\.\d+)?ms>)"               # group 2: pause marker
+    r"|(\[[a-zA-Z_]+\])"                        # group 3: potential emotion tag
+    r"|([^<\[\]\s][^<\[\]\n]*?[.!?…])"          # group 4: sentence (lazy, ends at first punct)
+    r"|([^<\[\]\s][^<\[\]\n]*)",                # group 5: fallback text run
     re.MULTILINE,
 )
 
+
+# ── Public entry point ─────────────────────────────────────────────────────────
 
 async def parse_script_to_sse_events(
     script: str,
@@ -51,17 +59,333 @@ async def parse_script_to_sse_events(
     from_chunk: int = 0,
 ) -> AsyncGenerator[str, None]:
     """
-    Parse a saved content_script and yield fully-formatted SSE ``data: {...}\\n\\n`` strings.
+    Parse a saved content_script and yield fully-formatted SSE ``data: {…}\\n\\n`` strings.
 
-    Yields ``segment_start`` first (chunk 0, always), then one event per parsed token,
-    then ``segment_end``.  If *is_last_segment* is True, a ``session_end`` event follows.
+    Detects the script format automatically:
+    - If the script is a JSON object with a ``"blocks"`` key  → NEW structured format
+    - Otherwise                                                → LEGACY speech-text format
 
-    *from_chunk* allows resuming mid-stream: events with ``chunk < from_chunk`` are skipped.
-    ``segment_start`` (chunk 0) is always emitted so the frontend can confirm the stream
-    reconnected.  Content events start at chunk 1.
+    ``segment_start`` (chunk 0) is ALWAYS emitted first so the frontend can confirm
+    a successful reconnect.
+
+    *from_chunk* allows resuming mid-stream: events with ``chunk < from_chunk`` are
+    skipped (but ``segment_start`` at chunk 0 is always emitted).
     """
-    # chunk 0 — segment_start, always emitted (signals successful reconnect)
+    # Try to detect new JSON format
+    try:
+        data = json.loads(script)
+        if isinstance(data, dict) and "blocks" in data:
+            async for event in _parse_json_blocks(
+                data, segment_order, segment_title, duration_seconds,
+                total_segments, is_last_segment=is_last_segment,
+                session_id=session_id, from_chunk=from_chunk,
+            ):
+                yield event
+            return
+    except (json.JSONDecodeError, ValueError, TypeError):
+        pass
+
+    # Fall back to legacy text parser
+    async for event in _parse_legacy_script(
+        script, segment_order, segment_title, duration_seconds,
+        total_segments, is_last_segment=is_last_segment,
+        session_id=session_id, from_chunk=from_chunk,
+    ):
+        yield event
+
+
+# ── NEW: JSON blocks parser ────────────────────────────────────────────────────
+
+async def _parse_json_blocks(
+    data: dict,
+    segment_order: int,
+    segment_title: str,
+    duration_seconds: int,
+    total_segments: int,
+    *,
+    is_last_segment: bool,
+    session_id: str,
+    from_chunk: int,
+) -> AsyncGenerator[str, None]:
+    """Parse structured block JSON and emit the full hierarchy of SSE events."""
+
     chunk = 0
+
+    # ── segment_start (always emitted — reconnect signal) ────────────
+    yield _emit({
+        "type": "segment_start",
+        "segment_order": segment_order,
+        "title": segment_title,
+        "duration_seconds": duration_seconds,
+        "total_segments": total_segments,
+        "chunk": chunk,
+    })
+
+    blocks = data.get("blocks", [])
+
+    for block_idx, block in enumerate(blocks):
+        block_id = block.get("id", f"b{block_idx + 1}")
+        block_title = block.get("title", "")
+
+        # ── block_start ───────────────────────────────────────────────
+        chunk += 1
+        if chunk >= from_chunk:
+            yield _emit({
+                "type": "block_start",
+                "blockId": block_id,
+                "title": block_title,
+                "chunk": chunk,
+            })
+        await asyncio.sleep(0)
+
+        sections = block.get("sections", [])
+
+        for section in sections:
+            heading = section.get("heading", "")
+            importance = section.get("importance", "medium")
+
+            # ── section_start ─────────────────────────────────────────
+            chunk += 1
+            if chunk >= from_chunk:
+                yield _emit({
+                    "type": "section_start",
+                    "heading": heading,
+                    "importance": importance,
+                    "readable_text": heading,
+                    "chunk": chunk,
+                })
+            await asyncio.sleep(0)
+
+            elements = section.get("elements", [])
+
+            for element in elements:
+                etype = element.get("type", "")
+
+                # ── text ──────────────────────────────────────────────
+                if etype == "text":
+                    content = (element.get("value") or element.get("content") or "").strip()
+                    if content:
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "text", "value": content, "readable_text": content, "chunk": chunk})
+                            await asyncio.sleep(0)
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "pause", "duration": 350, "chunk": chunk})
+
+                # ── list ──────────────────────────────────────────────
+                elif etype == "list":
+                    items = [i for i in element.get("items", []) if str(i).strip()]
+                    if items:
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "list_start", "chunk": chunk})
+                        for item in items:
+                            item_text = str(item).strip()
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({"type": "list_item", "value": item_text, "readable_text": item_text, "chunk": chunk})
+                                await asyncio.sleep(0)
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({"type": "pause", "duration": 220, "chunk": chunk})
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "list_end", "chunk": chunk})
+
+                # ── steps ─────────────────────────────────────────────
+                elif etype == "steps":
+                    steps = [s for s in element.get("steps", []) if str(s).strip()]
+                    if steps:
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "steps_start", "chunk": chunk})
+                        for step_num, step in enumerate(steps, 1):
+                            step_text = str(step).strip()
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({
+                                    "type": "step",
+                                    "step_number": step_num,
+                                    "value": step_text,
+                                    "readable_text": f"Step {step_num}. {step_text}",
+                                    "chunk": chunk,
+                                })
+                                await asyncio.sleep(0)
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({"type": "pause", "duration": 300, "chunk": chunk})
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "steps_end", "chunk": chunk})
+
+                # ── table ─────────────────────────────────────────────
+                elif etype == "table":
+                    headers = element.get("headers", [])
+                    rows = element.get("rows", [])
+                    if headers or rows:
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "table_start", "headers": headers, "readable_text": "Here is a table. " + ", ".join(headers) + "." if headers else "", "chunk": chunk})
+                        for row in rows:
+                            row_text = ". ".join(
+                                f"{headers[ci]}: {cell}" if ci < len(headers) else str(cell)
+                                for ci, cell in enumerate(row)
+                            )
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({"type": "table_row", "row": row, "readable_text": row_text, "chunk": chunk})
+                                await asyncio.sleep(0)
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({"type": "pause", "duration": 200, "chunk": chunk})
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "table_end", "chunk": chunk})
+
+                # ── accordion ─────────────────────────────────────────
+                elif etype == "accordion":
+                    acc_title = (element.get("title") or "").strip()
+                    acc_content = (element.get("content") or "").strip()
+                    if acc_title or acc_content:
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({
+                                "type": "accordion",
+                                "title": acc_title,
+                                "content": acc_content,
+                                "readable_text": f"{acc_title}. {acc_content}".strip(". "),
+                                "chunk": chunk,
+                            })
+
+                # ── tabs ──────────────────────────────────────────────
+                elif etype == "tabs":
+                    tabs = element.get("tabs", [])
+                    if tabs:
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "tabs_start", "chunk": chunk})
+                        for tab in tabs:
+                            tab_label = (tab.get("label") or "").strip()
+                            tab_content = (tab.get("content") or "").strip()
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({"type": "tab_start", "label": tab_label, "readable_text": tab_label, "chunk": chunk})
+                            if tab_content:
+                                chunk += 1
+                                if chunk >= from_chunk:
+                                    yield _emit({"type": "text", "value": tab_content, "readable_text": tab_content, "chunk": chunk})
+                                    await asyncio.sleep(0)
+                            chunk += 1
+                            if chunk >= from_chunk:
+                                yield _emit({"type": "tab_end", "chunk": chunk})
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "tabs_end", "chunk": chunk})
+
+                # ── question ──────────────────────────────────────────
+                elif etype == "question":
+                    q_text = (element.get("question") or "").strip()
+                    q_opts = element.get("options", [])
+                    q_ans = (element.get("answer") or "").strip()
+                    if q_text:
+                        opts_readable = ". ".join(
+                            f"Option {i + 1}: {opt}" for i, opt in enumerate(q_opts)
+                        )
+                        readable = f"Here is a question. {q_text} {opts_readable}."
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({
+                                "type": "question",
+                                "question": q_text,
+                                "options": q_opts,
+                                "answer": q_ans,
+                                "readable_text": readable,
+                                "chunk": chunk,
+                            })
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "pause", "duration": 500, "chunk": chunk})
+
+                # ── summary ───────────────────────────────────────────
+                elif etype == "summary":
+                    points = [p for p in element.get("points", []) if str(p).strip()]
+                    if points:
+                        summary_readable = "Here is a summary. " + ". ".join(str(p).strip() for p in points) + "."
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "summary", "points": points, "readable_text": summary_readable, "chunk": chunk})
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "pause", "duration": 400, "chunk": chunk})
+
+                # ── visual_hint ───────────────────────────────────────
+                elif etype == "visual_hint":
+                    hint_text = (element.get("text") or "").strip()
+                    if hint_text:
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "visual_hint", "text": hint_text, "readable_text": hint_text, "chunk": chunk})
+                        # NOTE: No longer emitting a duplicate text chunk with is_visual_hint=True.
+                        # The frontend now uses readable_text on the visual_hint chunk itself
+                        # to do word-by-word streaming before rendering the rich card.
+                        chunk += 1
+                        if chunk >= from_chunk:
+                            yield _emit({"type": "pause", "duration": 400, "chunk": chunk})
+
+            # ── section_end ───────────────────────────────────────────
+            chunk += 1
+            if chunk >= from_chunk:
+                yield _emit({"type": "section_end", "chunk": chunk})
+            await asyncio.sleep(0)
+
+        # ── pause between blocks ──────────────────────────────────────
+        chunk += 1
+        if chunk >= from_chunk:
+            yield _emit({"type": "pause", "duration": 700, "chunk": chunk})
+
+        # ── block_end (include references + next for UI arrows) ────────
+        block_references = block.get("references", [])
+        block_next = block.get("next", [])
+        chunk += 1
+        if chunk >= from_chunk:
+            yield _emit({
+                "type": "block_end",
+                "blockId": block_id,
+                "references": block_references,
+                "next": block_next,
+                "chunk": chunk,
+            })
+        await asyncio.sleep(0)
+
+    # ── segment_end ───────────────────────────────────────────────────
+    chunk += 1
+    yield _emit({"type": "segment_end", "segment_order": segment_order, "chunk": chunk})
+
+    # ── session_end (last segment only) ──────────────────────────────
+    if is_last_segment:
+        chunk += 1
+        yield _emit({"type": "session_end", "session_id": session_id, "chunk": chunk})
+
+
+# ── LEGACY: speech-text parser (kept for backward compatibility) ──────────────
+
+async def _parse_legacy_script(
+    script: str,
+    segment_order: int,
+    segment_title: str,
+    duration_seconds: int,
+    total_segments: int,
+    *,
+    is_last_segment: bool,
+    session_id: str,
+    from_chunk: int,
+) -> AsyncGenerator[str, None]:
+    """Parse a speech-first text script and emit legacy-format SSE events."""
+
+    chunk = 0
+
+    # chunk 0 — segment_start, always emitted
     yield _emit({
         "type": "segment_start",
         "segment_order": segment_order,
@@ -119,7 +443,6 @@ async def parse_script_to_sse_events(
         elif fallback and fallback.strip():
             clean = fallback.strip()
             if len(clean) > 1 and not clean.startswith("[") and not clean.startswith("<"):
-                # Route bare "WHITEBOARD: action=X, content=Y" lines to whiteboard events
                 wb_bare = re.match(
                     r"^WHITEBOARD:\s*action\s*=\s*(\w+)\s*,\s*content\s*=\s*(.+)$",
                     clean,
@@ -146,17 +469,9 @@ async def parse_script_to_sse_events(
 
     # segment_end
     chunk += 1
-    yield _emit({
-        "type": "segment_end",
-        "segment_order": segment_order,
-        "chunk": chunk,
-    })
+    yield _emit({"type": "segment_end", "segment_order": segment_order, "chunk": chunk})
 
-    # session_end — only after the very last segment
     if is_last_segment:
         chunk += 1
-        yield _emit({
-            "type": "session_end",
-            "session_id": session_id,
-            "chunk": chunk,
-        })
+        yield _emit({"type": "session_end", "session_id": session_id, "chunk": chunk})
+

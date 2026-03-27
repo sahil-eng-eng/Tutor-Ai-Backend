@@ -46,6 +46,7 @@ from app.prompts.prompt_composer import (
     compose_session_evaluation_prompt,
     compose_session_goodbye_prompt,
     compose_session_teaching_prompt,
+    compose_structured_teaching_system_prompt,
     calculate_target_wpm,
 )
 from app.schemas.session import (
@@ -883,12 +884,33 @@ class SessionService:
     def _get_previous_segment_summary(
         self, session: TutorSession, segment_order: int
     ) -> Optional[str]:
-        """Return a truncated copy of the previous segment's content_script for AI context."""
+        """Return a truncated summary of the previous segment's content for AI context.
+
+        Handles both the new structured JSON format and the legacy text script format.
+        """
         if segment_order <= 1:
             return None
         for seg in session.segments:
             if seg.segment_order == segment_order - 1 and seg.content_script:
-                return seg.content_script[:800]
+                script = seg.content_script
+                # NEW FORMAT: extract text elements from JSON blocks
+                try:
+                    data = json.loads(script)
+                    if isinstance(data, dict) and "blocks" in data:
+                        texts: list[str] = []
+                        for block in data.get("blocks", []):
+                            for section in block.get("sections", []):
+                                for el in section.get("elements", []):
+                                    if el.get("type") == "text":
+                                        texts.append(el.get("content", ""))
+                                    elif el.get("type") == "list":
+                                        texts.extend(el.get("items", []))
+                        summary = " ".join(texts)
+                        return summary[:_PREV_CONTEXT_CHARS]
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    pass
+                # LEGACY FORMAT: plain text script
+                return script[:_PREV_CONTEXT_CHARS]
         return None
 
     def _find_eval_segment(
@@ -937,6 +959,7 @@ class SessionService:
                 selectinload(TutorSession.segments),
                 selectinload(TutorSession.config),
                 selectinload(TutorSession.materials),
+                selectinload(TutorSession.user),
             )
             .where(
                 TutorSession.id == session_id,
@@ -968,38 +991,123 @@ class SessionService:
         previous_summary: Optional[str],
         material_summary: Optional[str],
     ) -> str:
-        """Generate a teaching script for a segment using session_evaluation data."""
+        """Generate structured JSON teaching content for a segment.
+
+        Uses the new block-based structured format.  The full JSON is returned
+        as a serialised string so it can be stored in ``content_script`` and
+        later parsed by :func:`parse_script_to_sse_events`.
+        """
         duration_seconds = eval_segment.get("duration_seconds", 300)
         wpm = calculate_target_wpm(
             session.model_personality.value, session.mood.value
         )
         target_word_count = round(wpm * duration_seconds / 60)
 
+        # Resolve tutor name (best-effort; fallback to Arjun)
+        tutor_name = "Arjun"
+        if session.config and getattr(session.config, "voice_id", None):
+            try:
+                from uuid import UUID as _UUID
+                vp_q = await self._db.execute(
+                    select(VoiceProfile).where(
+                        VoiceProfile.id == _UUID(session.config.voice_id)
+                    )
+                )
+                vp = vp_q.scalar_one_or_none()
+                if vp:
+                    tutor_name = vp.tutor_name
+            except Exception:
+                pass
+
+        # Build the structured-JSON–specific system prompt
+        structured_system_prompt = compose_structured_teaching_system_prompt(
+            tutor_name=tutor_name,
+            language=session.language,
+            user_type=(
+                session.user.user_type.value
+                if session.user
+                else "self_learner"
+            ),
+            age=session.user.age if session.user else None,
+            concept_name=session.concept_name,
+            study_level=session.study_level.value,
+            personality=session.model_personality.value,
+            mood=session.mood.value,
+            user_material_summary=material_summary,
+        )
+
+        # Build the user message (segment-specific teaching instruction)
         teaching_prompt = compose_session_teaching_prompt(
             session_evaluation=session.session_evaluation or {},
             segment_order=segment_order,
-            system_prompt=session.system_prompt_snapshot or "",
+            system_prompt=structured_system_prompt,
             previous_segment_summary=previous_summary,
             user_material_summary=material_summary,
             target_word_count=target_word_count,
         )
 
+        title = eval_segment.get("title", f"Segment {segment_order}")
+        points = eval_segment.get("key_points", ["the key concepts"])
+
         try:
             result = await generate_json_response(
-                system_prompt=session.system_prompt_snapshot or "You are an expert tutor. Return valid JSON.",
-                user_message=teaching_prompt + '\n\nReturn as JSON: {"content_script": "...", "animation_cues": {...} or null, "whiteboard_cues": {...} or null}',
+                system_prompt=structured_system_prompt,
+                user_message=teaching_prompt,
                 model=session.ai_model_used or "gpt-4o-mini",
                 temperature=0.7,
                 max_tokens=8192,
             )
+
             if isinstance(result, dict):
-                return result.get("content_script", "")
-            return str(result)
+                # NEW FORMAT: structured JSON with blocks
+                if "blocks" in result:
+                    # Ensure topic is set
+                    if not result.get("topic"):
+                        result["topic"] = title
+                    return json.dumps(result, ensure_ascii=False)
+
+                # LEGACY FALLBACK: model returned old-style content_script
+                if "content_script" in result:
+                    return result["content_script"]
+
+            return str(result) if result else ""
+
         except Exception:
             logger.exception("Failed to generate segment %d script", segment_order)
-            title = eval_segment.get("title", f"Segment {segment_order}")
-            points = eval_segment.get("key_points", ["the key concepts"])
-            return f"Let's continue with {title}. We'll cover: {', '.join(points)}."
+            # Minimal fallback — not ideal but keeps the session alive
+            return json.dumps({
+                "topic": title,
+                "difficulty": "intermediate",
+                "blocks": [
+                    {
+                        "id": "b1",
+                        "title": title,
+                        "estimated_time": duration_seconds,
+                        "sections": [
+                            {
+                                "heading": "Overview",
+                                "importance": "high",
+                                "elements": [
+                                    {
+                                        "type": "text",
+                                        "content": (
+                                            f"Welcome to this segment on {title}. "
+                                            f"We are going to explore {', '.join(points[:3])}. "
+                                            "Let us dive in together and build a strong understanding step by step."
+                                        ),
+                                    },
+                                    {
+                                        "type": "list",
+                                        "items": points[:5] if points else [f"Key concepts of {title}"],
+                                    },
+                                ],
+                            }
+                        ],
+                        "next": [],
+                        "references": [],
+                    }
+                ],
+            }, ensure_ascii=False)
 
     async def _generate_goodbye(self, session: TutorSession) -> str:
         """Generate a humanly goodbye message from the AI tutor."""

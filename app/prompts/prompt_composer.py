@@ -19,6 +19,7 @@ from app.prompts.base_prompts import (
     CURIOSITY_AND_STORIES_PROMPT,
     SPEECH_FIRST_PROMPT,
     TEACHING_RHYTHM_PROMPT,
+    STRUCTURED_JSON_TEACHING_PROMPT,
 )
 from app.prompts.personality_prompts import PERSONALITY_PROMPTS, DEFAULT_PERSONALITY_PROMPT
 from app.prompts.mood_prompts import MOOD_PROMPTS, DEFAULT_MOOD_PROMPT
@@ -168,6 +169,66 @@ def compose_system_prompt(
     # 11. Extra context
     if extra_context:
         parts.append(f"\nAdditional Context:\n{extra_context}")
+
+    return "\n\n".join(parts)
+
+
+def compose_structured_teaching_system_prompt(
+    *,
+    tutor_name: str = "Arjun",
+    language: str = "english",
+    user_type: str = "self_learner",
+    age: Optional[int] = None,
+    concept_name: str,
+    study_level: str = "intermediate",
+    personality: str = "very_friendly",
+    mood: str = "focused",
+    user_material_summary: Optional[str] = None,
+) -> str:
+    """
+    Build the SYSTEM PROMPT used when generating structured JSON teaching content.
+
+    This prompt is purposely lightweight — the bulk of the format definition is
+    in STRUCTURED_JSON_TEACHING_PROMPT.  We still include tutor persona and
+    student context so the AI adapts vocabulary and examples appropriately.
+    """
+    parts: list[str] = []
+
+    # 1. Tutor identity (brief — focus on quality, not speech style)
+    parts.append(
+        f"You are {tutor_name}, an expert and passionate tutor with 12 years of teaching experience. "
+        f"You teach in {language}. Your goal is to produce world-class structured teaching content "
+        f"that genuinely helps the student understand and retain knowledge."
+    )
+
+    # 2. Personality adaptation
+    personality_prompt = PERSONALITY_PROMPTS.get(personality, DEFAULT_PERSONALITY_PROMPT)
+    parts.append(personality_prompt)
+
+    # 3. Student context (so AI adapts vocabulary/examples)
+    age_cat = _pick_age_category(user_type, age)
+    age_specific = AGE_INSTRUCTIONS.get(age_cat, AGE_INSTRUCTIONS["default"])
+    parts.append(
+        f"Student context: {user_type.replace('_', ' ').title()}, "
+        f"age: {age or 'not specified'}, "
+        f"study level: {study_level}.\n{age_specific}"
+    )
+
+    # 4. Topic hint
+    parts.append(f"The current teaching topic is: {concept_name}.")
+
+    # 5. Material context
+    if user_material_summary:
+        parts.append(
+            f"Student-provided study material (reference and incorporate this):\n{user_material_summary[:1000]}"
+        )
+
+    # 6. Mood adaptation
+    mood_prompt = MOOD_PROMPTS.get(mood, DEFAULT_MOOD_PROMPT)
+    parts.append(mood_prompt)
+
+    # 7. The core structured JSON format specification
+    parts.append(STRUCTURED_JSON_TEACHING_PROMPT)
 
     return "\n\n".join(parts)
 
@@ -593,9 +654,9 @@ Duration target: {dur_secs} seconds
 Personality approach: {strategy.get('personality_approach', '')}
 Mood adaptation: {strategy.get('mood_adaptation', '')}
 Engagement techniques: {', '.join(strategy.get('engagement_techniques', []))}
-{prev_ctx}{material_ctx}
+{prev_ctx}{material_ctx}{word_count_instruction}
 
-Teach this segment now. Speak naturally as if directly to the student.
-Follow the speech-first rules: short sentences, emotion markers, pause markers.
-Use [WHITEBOARD:] and [ANIMATION:] cues where the visual aids suggest them.
-{word_count_instruction}"""
+Generate the structured JSON teaching content for this segment now.
+Every block must build on the previous one.
+The student should feel like a real tutor is guiding them step by step.
+Return ONLY the JSON object — no markdown, no preamble, no extra text."""
