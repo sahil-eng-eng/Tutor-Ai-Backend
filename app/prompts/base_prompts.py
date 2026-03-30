@@ -419,10 +419,17 @@ All content lives inside elements. Each element has a "type" field.
 9. VISUAL_HINT — Visualization that helps understanding
 {
   "type": "visual_hint",
-  "text": "Imagine you are looking at a river flowing downhill — that is exactly how electrons move in a circuit."
+  "text": "A loop of wire with a bar magnet approaching it. Magnetic field lines flowing through the loop, and an induced current shown with arrows circling the wire opposing the magnet's approach.",
+  "image_url": null
 }
-- Use to paint a mental picture before or after a complex concept
-- Write as a vivid, concrete image the student can see in their mind
+- The text must be written as a **detailed image generation prompt** — specific enough
+  that an image generation model can produce a clear educational diagram from it
+- Describe the exact visual scene, diagram, or concept map to generate
+- Include ALL relevant scenarios if the block covers multiple cases (show them side-by-side)
+- Include ALL steps if the block teaches a sequential process (Step 1 → Step 2 → Step 3)
+- Specify labels, arrows, colors, and layout where relevant
+- The text is ALSO read aloud as spoken prose — so write it as vivid description
+- image_url starts as null and gets populated automatically by the image generation pipeline
 
 ─────────────────────────────────────────────────────────
 HOW TO WRITE EACH ELEMENT TYPE — READ CAREFULLY

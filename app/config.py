@@ -52,6 +52,12 @@ class Settings(BaseSettings):
     # Rate Limiting
     RATE_LIMIT_PER_MINUTE: int = 60
 
+    # Nano-Banana Image Generation
+    NANOBANANA_API_URL: str = ""
+    NANOBANANA_API_KEY: str = ""
+    NANOBANANA_TIMEOUT_SECONDS: int = 30
+    NANOBANANA_ENABLED: bool = True
+
     # Email / OTP
     EMAIL_SERVICE_ENABLED: bool = False
     OTP_SERVICE_ENABLED: bool = False

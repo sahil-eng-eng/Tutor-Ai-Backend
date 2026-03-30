@@ -542,6 +542,17 @@ class SessionService:
             target_seg.started_at = datetime.now(timezone.utc)
             await self._db.flush()
 
+        # ── Fire background image generation for visual_hints ───────
+        try:
+            script_data = json.loads(target_seg.content_script)
+            if isinstance(script_data, dict) and "blocks" in script_data:
+                from app.services.image_generation_service import fire_image_generation
+                asyncio.create_task(
+                    fire_image_generation(session.id, segment_order, script_data)
+                )
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass  # legacy text format — no image gen needed
+
         # ── Stream the saved script as structured SSE events ────────
         async for event_str in parse_script_to_sse_events(
             script=target_seg.content_script,

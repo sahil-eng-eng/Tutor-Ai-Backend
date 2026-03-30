@@ -322,10 +322,19 @@ async def _parse_json_blocks(
                 # ── visual_hint ───────────────────────────────────────
                 elif etype == "visual_hint":
                     hint_text = (element.get("text") or "").strip()
+                    hint_image_url = element.get("image_url") or None
                     if hint_text:
                         chunk += 1
                         if chunk >= from_chunk:
-                            yield _emit({"type": "visual_hint", "text": hint_text, "readable_text": hint_text, "chunk": chunk})
+                            vh_payload: dict = {
+                                "type": "visual_hint",
+                                "text": hint_text,
+                                "readable_text": hint_text,
+                                "chunk": chunk,
+                            }
+                            if hint_image_url:
+                                vh_payload["image_url"] = hint_image_url
+                            yield _emit(vh_payload)
                         # NOTE: No longer emitting a duplicate text chunk with is_visual_hint=True.
                         # The frontend now uses readable_text on the visual_hint chunk itself
                         # to do word-by-word streaming before rendering the rich card.
