@@ -53,9 +53,10 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 60
 
     # Nano-Banana Image Generation
-    NANOBANANA_API_URL: str = ""
+    NANOBANANA_API_URL: str = "https://api.nanobananaapi.ai/api/v1/nanobanana/generate"
     NANOBANANA_API_KEY: str = ""
-    NANOBANANA_TIMEOUT_SECONDS: int = 30
+    NANOBANANA_TIMEOUT_SECONDS: int = 60
+    NANOBANANA_CALLBACK_BASE_URL: str = "https://a84e-2409-40d1-453-5d1-d31-da6c-f164-969d.ngrok-free.app"  # e.g. https://your-ngrok-url.ngrok-free.dev
     NANOBANANA_ENABLED: bool = True
 
     # Email / OTP

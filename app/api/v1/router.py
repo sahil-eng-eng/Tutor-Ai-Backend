@@ -9,6 +9,7 @@ from app.api.v1.curriculum import router as curriculum_router
 from app.api.v1.voices import router as voices_router
 from app.api.v1.materials import router as materials_router
 from app.api.v1.speech import router as speech_router
+from app.api.v1.images import router as images_router
 from app.api.v1.websocket import router as ws_router
 
 api_router = APIRouter()
@@ -22,4 +23,5 @@ api_router.include_router(curriculum_router, prefix="/curriculum", tags=["Curric
 api_router.include_router(voices_router, prefix="/voices", tags=["Voices"])
 api_router.include_router(materials_router, prefix="/materials", tags=["Materials"])
 api_router.include_router(speech_router, prefix="/speech", tags=["Speech"])
+api_router.include_router(images_router, prefix="/images", tags=["Images"])
 api_router.include_router(ws_router, prefix="/ws", tags=["WebSocket"])

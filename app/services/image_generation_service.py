@@ -1,11 +1,16 @@
 """
-Image Generation Service — integrates with the nano-banana utility to produce
+Image Generation Service — integrates with the nano-banana API to produce
 educational diagrams from visual_hint text.
 
-Sequential fire-and-forget: requests are dispatched in block-order (b1-vh1,
-b1-vh2, b2-vh1 …) but each request is non-blocking.  As soon as any image
-resolves, the result is written back to the in-memory content_script dict and
-persisted to the DB so the SSE parser can pick it up.
+Uses nano-banana's *callback* pattern:
+  1.  POST  →  nano-banana   (returns a taskId immediately)
+  2.  nano-banana later POSTs to our callback endpoint with the resultImageUrl
+  3.  An asyncio.Future bridges the two — _generate_single_image awaits the
+      Future while the callback endpoint resolves it.
+
+Sequential per-block: hints are processed in block order (b1-vh1, b1-vh2, b2-vh1 …).
+Each one waits for the callback before moving on so image URLs are written into
+the content_script in the correct order and persisted to the DB.
 """
 
 from __future__ import annotations
@@ -14,18 +19,36 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
 import httpx
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.session import SessionSegment
 
 logger = logging.getLogger("ai_tutor")
+
+# ── Pending callback registry ─────────────────────────────────────────
+# Maps  taskId → asyncio.Future[str]   (str = resultImageUrl)
+_pending_tasks: dict[str, asyncio.Future[str]] = {}
+
+
+def resolve_callback(task_id: str, image_url: str) -> bool:
+    """Called by the callback API endpoint when nano-banana POSTs back.
+
+    Resolves the pending Future so _generate_single_image can continue.
+    Returns True if the taskId was found and resolved.
+    """
+    future = _pending_tasks.pop(task_id, None)
+    if future is not None and not future.done():
+        future.set_result(image_url)
+        logger.info("Resolved callback for taskId=%s → %s", task_id, image_url[:80])
+        return True
+    logger.warning("resolve_callback: unknown or already-resolved taskId=%s", task_id)
+    return False
+
 
 # ── Data structures ────────────────────────────────────────────────────
 
@@ -39,7 +62,7 @@ class VisualHintLocation:
     raw_text: str
 
 
-# ── Public API ─────────────────────────────────────────────────────────
+# ── Public helpers ─────────────────────────────────────────────────────
 
 def collect_visual_hints(content_script: dict) -> list[VisualHintLocation]:
     """Walk blocks → sections → elements in order; return all visual_hint locations."""
@@ -96,30 +119,70 @@ def _apply_image_url(content_script: dict, hint: VisualHintLocation, image_url: 
             return
 
 
+# ── Internal helpers ───────────────────────────────────────────────────
+
 async def _generate_single_image(prompt: str) -> Optional[str]:
-    """Call nano-banana for a single prompt.  Returns the image URL or None."""
-    if not settings.NANOBANANA_API_URL or not settings.NANOBANANA_ENABLED:
-        logger.debug("Nano-banana disabled or URL not configured; skipping image gen")
+    """Fire a generation request to nano-banana and wait for the callback.
+
+    1. POST to nano-banana with callBackUrl  →  get taskId
+    2. Create asyncio.Future keyed by taskId
+    3. Await the Future (callback endpoint will resolve it)
+    4. Return the image URL or None on timeout / error
+    """
+    if not settings.NANOBANANA_ENABLED:
+        logger.debug("Nano-banana disabled; skipping image gen")
         return None
+    if not settings.NANOBANANA_API_URL or not settings.NANOBANANA_API_KEY:
+        logger.debug("Nano-banana URL or API key not configured; skipping image gen")
+        return None
+    if not settings.NANOBANANA_CALLBACK_BASE_URL:
+        logger.warning("NANOBANANA_CALLBACK_BASE_URL not set; cannot receive callbacks. Skipping image gen.")
+        return None
+
+    callback_url = f"{settings.NANOBANANA_CALLBACK_BASE_URL.rstrip('/')}/api/v1/images/callback"
+
     try:
-        async with httpx.AsyncClient(timeout=settings.NANOBANANA_TIMEOUT_SECONDS) as client:
-            headers = {}
-            if settings.NANOBANANA_API_KEY:
-                headers["Authorization"] = f"Bearer {settings.NANOBANANA_API_KEY}"
+        async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 settings.NANOBANANA_API_URL,
-                json={"prompt": prompt},
-                headers=headers,
+                json={
+                    "prompt": prompt,
+                    "type": "TEXTTOIAMGE",       # note: nano-banana uses this spelling
+                    "numImages": 1,
+                    "image_size": "16:9",
+                    "callBackUrl": callback_url,
+                },
+                headers={
+                    "Authorization": f"Bearer {settings.NANOBANANA_API_KEY}",
+                    "Content-Type": "application/json",
+                },
             )
             resp.raise_for_status()
             data = resp.json()
-            # Accept either {url: "..."} or {image_url: "..."} or {data: {url: "..."}}
-            url = (
-                data.get("url")
-                or data.get("image_url")
-                or (data.get("data", {}) or {}).get("url")
+
+        # Extract taskId from immediate response: {code: 200, data: {taskId: "..."}}
+        task_id = (data.get("data") or {}).get("taskId")
+        if not task_id:
+            logger.error("Nano-banana did not return a taskId. Response: %s", data)
+            return None
+
+        logger.info("Nano-banana accepted request — taskId=%s, waiting for callback…", task_id)
+
+        # Create a Future and register it for the callback to resolve
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[str] = loop.create_future()
+        _pending_tasks[task_id] = future
+
+        try:
+            image_url: str = await asyncio.wait_for(
+                future, timeout=settings.NANOBANANA_TIMEOUT_SECONDS,
             )
-            return url or None
+            return image_url
+        except asyncio.TimeoutError:
+            logger.warning("Timed out waiting for callback (taskId=%s)", task_id)
+            _pending_tasks.pop(task_id, None)
+            return None
+
     except Exception:
         logger.exception("Nano-banana image generation failed for prompt (first 80 chars): %s", prompt[:80])
         return None
@@ -144,16 +207,23 @@ async def _persist_content_script(session_id: UUID, segment_order: int, content_
         logger.exception("Failed to persist content_script after image generation")
 
 
+# ── Main entry point (background task) ─────────────────────────────────
+
 async def fire_image_generation(
     session_id: UUID,
     segment_order: int,
     content_script: dict,
+    image_ready_queue: Optional[asyncio.Queue] = None,
 ) -> None:
-    """Background task: sequentially fire image requests for all visual_hints.
+    """Background task: sequentially process image requests for all visual_hints.
 
-    Fires each request and moves on immediately (fire-and-forget via tasks).
-    As each image resolves, it is written into the in-memory content_script
-    and persisted to the DB.
+    Each hint is sent to nano-banana, then we *await* the callback before
+    moving to the next hint.  As each image resolves, the URL is written into
+    the in-memory content_script and persisted to the DB.
+
+    If *image_ready_queue* is provided, ``(block_id, image_url)`` tuples are
+    pushed onto it so the SSE streaming generator can emit ``image_ready``
+    events to the frontend in real-time.
     """
     hints = collect_visual_hints(content_script)
     if not hints:
@@ -164,27 +234,28 @@ async def fire_image_generation(
         len(hints), session_id, segment_order,
     )
 
-    async def _process_hint(hint: VisualHintLocation) -> None:
+    for i, hint in enumerate(hints):
         prompt = enrich_prompt(hint, content_script)
+        logger.info(
+            "Generating image %d/%d — block=%s prompt=%.80s",
+            i + 1, len(hints), hint.block_id, prompt,
+        )
         image_url = await _generate_single_image(prompt)
         if image_url:
             _apply_image_url(content_script, hint, image_url)
             await _persist_content_script(session_id, segment_order, content_script)
+            if image_ready_queue is not None:
+                await image_ready_queue.put((hint.block_id, image_url))
             logger.info(
                 "Image ready: block=%s, sec=%d, el=%d, url=%s",
                 hint.block_id, hint.section_index, hint.element_index, image_url[:80],
             )
+        else:
+            logger.warning(
+                "Image generation returned no URL: block=%s, sec=%d, el=%d",
+                hint.block_id, hint.section_index, hint.element_index,
+            )
 
-    # Fire sequentially but don't await each one — use tasks
-    tasks: list[asyncio.Task] = []
-    for hint in hints:
-        task = asyncio.create_task(_process_hint(hint))
-        tasks.append(task)
-        # Small stagger to respect rate limits (sequential firing order)
-        await asyncio.sleep(0.15)
-
-    # Wait for all to complete (so the background task itself stays alive)
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    for i, result in enumerate(results):
-        if isinstance(result, Exception):
-            logger.warning("Image gen task %d failed: %s", i, result)
+    # Signal completion so the SSE generator stops waiting
+    if image_ready_queue is not None:
+        await image_ready_queue.put(None)

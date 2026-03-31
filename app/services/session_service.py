@@ -543,15 +543,30 @@ class SessionService:
             await self._db.flush()
 
         # ── Fire background image generation for visual_hints ───────
+        image_ready_queue: asyncio.Queue = asyncio.Queue()
+        image_gen_active = False
         try:
             script_data = json.loads(target_seg.content_script)
             if isinstance(script_data, dict) and "blocks" in script_data:
                 from app.services.image_generation_service import fire_image_generation
                 asyncio.create_task(
-                    fire_image_generation(session.id, segment_order, script_data)
+                    fire_image_generation(
+                        session.id, segment_order, script_data,
+                        image_ready_queue=image_ready_queue,
+                    )
                 )
+                image_gen_active = True
         except (json.JSONDecodeError, TypeError, ValueError):
             pass  # legacy text format — no image gen needed
+
+        # Helper to drain pending image_ready events from the queue
+        def _format_image_ready(block_id: str, image_url: str) -> str:
+            payload = json.dumps({
+                "type": "image_ready",
+                "blockId": block_id,
+                "image_url": image_url,
+            })
+            return f"data: {payload}\n\n"
 
         # ── Stream the saved script as structured SSE events ────────
         async for event_str in parse_script_to_sse_events(
@@ -565,6 +580,31 @@ class SessionService:
             from_chunk=from_chunk,
         ):
             yield event_str
+            # After each SSE event, drain any image_ready items
+            while not image_ready_queue.empty():
+                try:
+                    item = image_ready_queue.get_nowait()
+                    if item is None:
+                        image_gen_active = False
+                    else:
+                        block_id, img_url = item
+                        yield _format_image_ready(block_id, img_url)
+                except asyncio.QueueEmpty:
+                    break
+
+        # ── After SSE streaming, drain remaining image_ready events ──
+        if image_gen_active:
+            while True:
+                try:
+                    item = await asyncio.wait_for(
+                        image_ready_queue.get(), timeout=2.0,
+                    )
+                    if item is None:
+                        break  # all images done
+                    block_id, img_url = item
+                    yield _format_image_ready(block_id, img_url)
+                except asyncio.TimeoutError:
+                    break  # no more images coming
 
         # ── Mark segment complete ───────────────────────────────────
         target_seg.status = SegmentStatus.COMPLETED

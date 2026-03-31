@@ -416,18 +416,22 @@ All content lives inside elements. Each element has a "type" field.
 - Only use at the END of a block (or the last block of the segment)
 - 2–5 concise points
 
-9. VISUAL_HINT — Visualization that helps understanding
+9. VISUAL_HINT — Visualization that helps understanding (MANDATORY — every block MUST have one)
 {
   "type": "visual_hint",
-  "text": "A loop of wire with a bar magnet approaching it. Magnetic field lines flowing through the loop, and an induced current shown with arrows circling the wire opposing the magnet's approach.",
+  "text": "A loop of wire with a bar magnet approaching it. Magnetic field lines flowing through the loop, and an induced current shown with arrows circling the wire opposing the magnet's approach. Labels: 'N' and 'S' on the magnet poles, 'Induced Current' with directional arrows on the wire loop, 'Magnetic Field Lines' shown as dotted curves.",
   "image_url": null
 }
-- The text must be written as a **detailed image generation prompt** — specific enough
-  that an image generation model can produce a clear educational diagram from it
-- Describe the exact visual scene, diagram, or concept map to generate
+- EVERY BLOCK must contain at least one visual_hint — this is NON-NEGOTIABLE
+- The text is used DIRECTLY as an image generation prompt — it MUST be specific enough
+  that an AI image generator can produce a clear, meaningful educational diagram from it
+- Describe the exact visual scene, diagram, concept map, or real-world analogy to generate
 - Include ALL relevant scenarios if the block covers multiple cases (show them side-by-side)
 - Include ALL steps if the block teaches a sequential process (Step 1 → Step 2 → Step 3)
-- Specify labels, arrows, colors, and layout where relevant
+- Specify labels, arrows, colors, layout, and spatial relationships where relevant
+- Use topic-specific imagery, NOT generic decorative images
+- BAD: "An image showing the concept of momentum" (too vague for image generation)
+- GOOD: "A billiard table viewed from above. Ball A moving right at velocity v1 collides with stationary Ball B. After collision, both balls move at different angles. Arrows show velocity vectors before and after. Labels: 'Before Collision' on left half, 'After Collision' on right half."
 - The text is ALSO read aloud as spoken prose — so write it as vivid description
 - image_url starts as null and gets populated automatically by the image generation pipeline
 
@@ -568,7 +572,13 @@ FLOW:
 - Close each block with a sense of completion or anticipation for the next
 
 ENGAGEMENT:
-- Include at least one VISUAL_HINT per segment (usually at the start of the first block)
+- Include at least one VISUAL_HINT per BLOCK — every block MUST have a visual_hint element
+  that describes a meaningful educational diagram/scene for that block's concept.
+  The visual_hint text is used as an image generation prompt, so write it as a vivid,
+  detailed description of a diagram, scene, or concept map (NOT a generic placeholder).
+  Example for threading: "A busy kitchen viewed from above. Multiple chefs represent threads
+  working at different stations. A head chef in the center represents the main thread
+  coordinating all work. Arrows show task delegation and synchronization points."
 - Include at least one QUESTION per segment (check understanding at key points)
 - Use LISTS to break down complex items — but with full explanatory sentences
 - Use SUMMARY only at the very end of the last block as a final wrap-up
