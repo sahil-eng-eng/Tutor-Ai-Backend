@@ -237,6 +237,7 @@ class SessionSegment(Base):
     animation_cues: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     whiteboard_cues: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     key_points: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    visuals_ready: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

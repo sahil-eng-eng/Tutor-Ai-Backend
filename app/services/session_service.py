@@ -69,18 +69,21 @@ logger = logging.getLogger("ai_tutor")
 
 # ── Prefetch tuning ────────────────────────────────────────────────────
 _PREFETCH_MAX_WAIT = 15.0  # max seconds to wait for a background prefetch
+_READINESS_MAX_WAIT = 30.0  # max seconds to wait for full segment readiness (content + visuals)
+_READINESS_POLL_INTERVAL = 0.5  # initial poll interval for readiness gate
 _PREV_CONTEXT_CHARS = 800  # chars of previous segment script passed to AI
 
 
 async def _background_prefetch_segment(
     session_id: UUID, user_id: UUID, segment_order: int
 ) -> None:
-    """Background ``asyncio.Task``: generate ``content_script`` for a future segment.
+    """Background ``asyncio.Task``: generate ``content_script`` + visual hint
+    images for a future segment.
 
     Uses an **independent** DB session so it can run concurrently with the
     request-scoped session that is streaming the current segment.  The
-    generated script is committed to the database; the SSE endpoint for the
-    next segment will pick it up via :py:meth:`SessionService._wait_for_content_script`.
+    generated script (with image URLs) is committed to the database; the
+    SSE endpoint for the next segment will pick it up via the readiness gate.
     """
     from app.database import AsyncSessionLocal
 
@@ -96,7 +99,23 @@ async def _background_prefetch_segment(
                     break
 
             if not target or target.content_script:
-                return  # already generated or segment doesn't exist
+                # Content already exists — just ensure visuals are generated
+                if target and target.content_script and not target.visuals_ready:
+                    try:
+                        script_data = json.loads(target.content_script)
+                        if isinstance(script_data, dict) and "blocks" in script_data:
+                            from app.services.image_generation_service import fire_image_generation
+                            await fire_image_generation(session_id, segment_order, script_data)
+                            # Re-read to pick up image URLs
+                            fresh = await service._read_fresh_content_script(session_id, segment_order)
+                            if fresh:
+                                target.content_script = fresh
+                        target.visuals_ready = True
+                        await db.commit()
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        target.visuals_ready = True
+                        await db.commit()
+                return
 
             prev_summary = service._get_previous_segment_summary(session, segment_order)
             material_summary = await service._get_material_summary(session)
@@ -121,9 +140,25 @@ async def _background_prefetch_segment(
                 return
 
             target.content_script = content
+            await db.flush()
+            logger.info(
+                "Prefetch content ready: segment %d (%d chars)", segment_order, len(content)
+            )
+
+            # Await image generation for the prefetched segment's visual_hints
+            # (blocking — ensures visuals_ready is set before we return)
+            try:
+                script_data = json.loads(content)
+                if isinstance(script_data, dict) and "blocks" in script_data:
+                    from app.services.image_generation_service import fire_image_generation
+                    await fire_image_generation(session_id, segment_order, script_data)
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+
+            target.visuals_ready = True
             await db.commit()
             logger.info(
-                "Prefetch complete: segment %d ready (%d chars)", segment_order, len(content)
+                "Prefetch complete: segment %d fully ready (content + visuals)", segment_order
             )
     except Exception:
         logger.exception(
@@ -453,6 +488,33 @@ class SessionService:
 
         await self._db.flush()
 
+        # ── Await image generation for segment 1 ───────────────────
+        # Generate all visual_hint images BEFORE returning the response.
+        # This ensures image URLs are baked into content_script in the DB
+        # so when the frontend connects SSE the images are already available.
+        seg1 = next((s for s in segments if s.segment_order == 1), None)
+        if seg1 and seg1.content_script:
+            try:
+                script_data = json.loads(seg1.content_script)
+                if isinstance(script_data, dict) and "blocks" in script_data:
+                    from app.services.image_generation_service import (
+                        fire_image_generation,
+                    )
+                    await fire_image_generation(
+                        session.id, 1, script_data,
+                        image_ready_queue=None,
+                    )
+                    # Re-read the persisted content_script (fire_image_generation
+                    # writes image_url values via _persist_content_script)
+                    fresh = await self._read_fresh_content_script(session.id, 1)
+                    if fresh:
+                        seg1.content_script = fresh
+                seg1.visuals_ready = True
+                await self._db.flush()
+            except (json.JSONDecodeError, TypeError, ValueError):
+                seg1.visuals_ready = True
+                await self._db.flush()
+
         # Manually set the segments relationship so it's available without re-query
         # (avoids stale identity-map issue with selectinload after flush)
         session.segments = segments
@@ -466,15 +528,18 @@ class SessionService:
     ) -> AsyncGenerator[str, None]:
         """Stream a segment's content_script as structured SSE events.
 
+        Readiness Gate — SSE does NOT start until:
+          ✅  content_script is fully generated
+          ✅  All visual_hint images are generated (visuals_ready = True)
+
         Flow:
-        1. If content_script is not ready (background prefetch still running),
-           polls the DB for up to ``_PREFETCH_MAX_WAIT`` seconds.
-        2. If still missing, generates synchronously (fallback).
-        3. Immediately fires a background ``asyncio.Task`` to generate
-           content_script for segment N+1 (look-ahead prefetch).
-        4. Streams the script via ``parse_script_to_sse_events`` which emits
-           ``segment_start``, content events, ``segment_end``, and
-           ``session_end`` (last segment only).
+        1. Check readiness gate: polls DB for content_script AND visuals_ready
+           with configurable timeout (_READINESS_MAX_WAIT seconds).
+        2. If timeout reached, falls back to sync generation + immediate image gen.
+        3. Re-reads content_script from DB to pick up image URLs.
+        4. Fires background prefetch for segment N+1 (content + visuals).
+        5. Streams script via parse_script_to_sse_events.
+        6. Emits any late image_ready events, then segment_end / session_end.
         """
         from app.utils.script_parser import parse_script_to_sse_events
 
@@ -496,33 +561,61 @@ class SessionService:
         total_segments = len(session.segments)
         is_last_segment = segment_order >= total_segments
 
-        # ── Ensure content_script is ready ──────────────────────────
-        if not target_seg.content_script:
-            content = await self._wait_for_content_script(
-                session.id, segment_order, timeout=_PREFETCH_MAX_WAIT
+        # ── Readiness Gate: content_script + visuals_ready ──────────
+        if not target_seg.content_script or not target_seg.visuals_ready:
+            ready = await self._wait_for_segment_ready(
+                session.id, segment_order, timeout=_READINESS_MAX_WAIT
             )
-            if content:
+            if ready:
+                content, visuals = ready
                 target_seg.content_script = content
+                target_seg.visuals_ready = visuals
             else:
-                # Background prefetch didn't finish in time — generate now
-                logger.info(
-                    "Sync fallback: generating segment %d for session %s",
-                    segment_order, session_id,
-                )
-                prev_summary = self._get_previous_segment_summary(session, segment_order)
-                material_summary = await self._get_material_summary(session)
-                eval_seg = self._find_eval_segment(session, segment_order)
-                if eval_seg:
-                    target_seg.content_script = await self._generate_segment_script(
-                        session, eval_seg, segment_order, prev_summary, material_summary
+                # Fallback: generate content synchronously if still missing
+                if not target_seg.content_script:
+                    logger.info(
+                        "Sync fallback: generating segment %d for session %s",
+                        segment_order, session_id,
                     )
-                else:
-                    target_seg.content_script = (
-                        f"[warm] Let's continue with {target_seg.title}. "
-                        f"<pause:300ms> We'll cover: "
-                        f"{', '.join(target_seg.key_points or ['the key concepts'])}."
-                    )
-            await self._db.flush()
+                    prev_summary = self._get_previous_segment_summary(session, segment_order)
+                    material_summary = await self._get_material_summary(session)
+                    eval_seg = self._find_eval_segment(session, segment_order)
+                    if eval_seg:
+                        target_seg.content_script = await self._generate_segment_script(
+                            session, eval_seg, segment_order, prev_summary, material_summary
+                        )
+                    else:
+                        target_seg.content_script = (
+                            f"[warm] Let's continue with {target_seg.title}. "
+                            f"<pause:300ms> We'll cover: "
+                            f"{', '.join(target_seg.key_points or ['the key concepts'])}."
+                        )
+                    await self._db.flush()
+
+                # Fallback: generate images synchronously if still missing
+                if not target_seg.visuals_ready and target_seg.content_script:
+                    try:
+                        script_data = json.loads(target_seg.content_script)
+                        if isinstance(script_data, dict) and "blocks" in script_data:
+                            from app.services.image_generation_service import fire_image_generation
+                            await fire_image_generation(
+                                session.id, segment_order, script_data,
+                                image_ready_queue=None,
+                            )
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        pass
+                    target_seg.visuals_ready = True
+                    await self._db.flush()
+
+        # ── Re-read content_script from DB ──────────────────────────
+        # Background image generation (fired in start_session or
+        # _background_prefetch_segment) may have already written image
+        # URLs into the content_script. Re-read to pick them up.
+        fresh_content = await self._read_fresh_content_script(
+            session.id, segment_order
+        )
+        if fresh_content:
+            target_seg.content_script = fresh_content
 
         # ── Fire N+1 background prefetch ────────────────────────────
         if not is_last_segment:
@@ -542,24 +635,34 @@ class SessionService:
             target_seg.started_at = datetime.now(timezone.utc)
             await self._db.flush()
 
-        # ── Fire background image generation for visual_hints ───────
+        # ── Fire background image generation for remaining hints ────
+        # Some hints may already have image_url (from prior background gen).
+        # fire_image_generation with only_missing=True skips those.
         image_ready_queue: asyncio.Queue = asyncio.Queue()
         image_gen_active = False
         try:
             script_data = json.loads(target_seg.content_script)
             if isinstance(script_data, dict) and "blocks" in script_data:
-                from app.services.image_generation_service import fire_image_generation
-                asyncio.create_task(
-                    fire_image_generation(
-                        session.id, segment_order, script_data,
-                        image_ready_queue=image_ready_queue,
-                    )
+                from app.services.image_generation_service import (
+                    fire_image_generation,
+                    collect_visual_hints,
                 )
-                image_gen_active = True
+                remaining = collect_visual_hints(script_data, only_missing=True)
+                if remaining:
+                    asyncio.create_task(
+                        fire_image_generation(
+                            session.id, segment_order, script_data,
+                            image_ready_queue=image_ready_queue,
+                        )
+                    )
+                    image_gen_active = True
+                else:
+                    # All images already generated — signal completion
+                    await image_ready_queue.put(None)
         except (json.JSONDecodeError, TypeError, ValueError):
             pass  # legacy text format — no image gen needed
 
-        # Helper to drain pending image_ready events from the queue
+        # Helper to format image_ready SSE events
         def _format_image_ready(block_id: str, image_url: str) -> str:
             payload = json.dumps({
                 "type": "image_ready",
@@ -569,6 +672,8 @@ class SessionService:
             return f"data: {payload}\n\n"
 
         # ── Stream the saved script as structured SSE events ────────
+        # Terminal events (segment_end, session_end) are suppressed —
+        # we emit them after draining image_ready events below.
         async for event_str in parse_script_to_sse_events(
             script=target_seg.content_script,
             segment_order=segment_order,
@@ -578,9 +683,10 @@ class SessionService:
             is_last_segment=is_last_segment,
             session_id=str(session.id),
             from_chunk=from_chunk,
+            emit_terminal_events=False,
         ):
             yield event_str
-            # After each SSE event, drain any image_ready items
+            # After each SSE event, drain any image_ready items that arrived
             while not image_ready_queue.empty():
                 try:
                     item = image_ready_queue.get_nowait()
@@ -593,18 +699,36 @@ class SessionService:
                     break
 
         # ── After SSE streaming, drain remaining image_ready events ──
+        # Wait up to NANOBANANA_TIMEOUT_SECONDS for each remaining image.
         if image_gen_active:
             while True:
                 try:
                     item = await asyncio.wait_for(
-                        image_ready_queue.get(), timeout=2.0,
+                        image_ready_queue.get(),
+                        timeout=float(settings.NANOBANANA_TIMEOUT_SECONDS),
                     )
                     if item is None:
                         break  # all images done
                     block_id, img_url = item
                     yield _format_image_ready(block_id, img_url)
                 except asyncio.TimeoutError:
-                    break  # no more images coming
+                    logger.warning(
+                        "Timed out waiting for remaining image_ready events "
+                        "(session=%s, segment=%d)", session_id, segment_order,
+                    )
+                    break
+
+        # ── Emit terminal events AFTER images are delivered ─────────
+        _emit_helper = lambda payload: f"data: {json.dumps(payload)}\n\n"
+        yield _emit_helper({
+            "type": "segment_end",
+            "segment_order": segment_order,
+        })
+        if is_last_segment:
+            yield _emit_helper({
+                "type": "session_end",
+                "session_id": str(session.id),
+            })
 
         # ── Mark segment complete ───────────────────────────────────
         target_seg.status = SegmentStatus.COMPLETED
@@ -1002,6 +1126,68 @@ class SessionService:
             interval = min(interval * 1.5, 2.0)
 
         return None
+
+    async def _wait_for_segment_ready(
+        self, session_id: UUID, segment_order: int,
+        timeout: float = 30.0,
+    ) -> Optional[tuple[str, bool]]:
+        """Readiness gate: poll DB for content_script AND visuals_ready.
+
+        Returns ``(content_script, visuals_ready)`` once both are satisfied,
+        or ``None`` on timeout.  Uses an independent session to see commits
+        from background prefetch tasks.
+        """
+        from app.database import AsyncSessionLocal
+        import time
+
+        deadline = time.monotonic() + timeout
+        interval = _READINESS_POLL_INTERVAL
+
+        while time.monotonic() < deadline:
+            await asyncio.sleep(interval)
+            async with AsyncSessionLocal() as fresh_db:
+                result = await fresh_db.execute(
+                    select(
+                        SessionSegment.content_script,
+                        SessionSegment.visuals_ready,
+                    ).where(
+                        SessionSegment.session_id == session_id,
+                        SessionSegment.segment_order == segment_order,
+                    )
+                )
+                row = result.one_or_none()
+                if row:
+                    content, visuals = row
+                    if content and visuals:
+                        return (content, visuals)
+            interval = min(interval * 1.3, 2.0)
+
+        return None
+
+    async def _read_fresh_content_script(
+        self, session_id: UUID, segment_order: int
+    ) -> Optional[str]:
+        """Read latest content_script from DB using an independent session.
+
+        Background image generation writes image URLs into the content_script
+        via _persist_content_script. This method reads the freshest version
+        so the SSE parser can emit visual_hint events with image_url already
+        populated (avoiding reliance on late image_ready events).
+        """
+        from app.database import AsyncSessionLocal
+
+        try:
+            async with AsyncSessionLocal() as fresh_db:
+                result = await fresh_db.execute(
+                    select(SessionSegment.content_script).where(
+                        SessionSegment.session_id == session_id,
+                        SessionSegment.segment_order == segment_order,
+                    )
+                )
+                return result.scalar_one_or_none()
+        except Exception:
+            logger.exception("Failed to read fresh content_script")
+            return None
 
     async def _get_session_or_404(self, session_id: UUID, user_id: UUID) -> TutorSession:
         result = await self._db.execute(

@@ -57,6 +57,7 @@ async def parse_script_to_sse_events(
     is_last_segment: bool = False,
     session_id: str = "",
     from_chunk: int = 0,
+    emit_terminal_events: bool = True,
 ) -> AsyncGenerator[str, None]:
     """
     Parse a saved content_script and yield fully-formatted SSE ``data: {…}\\n\\n`` strings.
@@ -70,6 +71,10 @@ async def parse_script_to_sse_events(
 
     *from_chunk* allows resuming mid-stream: events with ``chunk < from_chunk`` are
     skipped (but ``segment_start`` at chunk 0 is always emitted).
+
+    If *emit_terminal_events* is False, ``segment_end`` and ``session_end`` are
+    suppressed — the caller is responsible for emitting them (e.g. after draining
+    late-arriving image_ready events).
     """
     # Try to detect new JSON format
     try:
@@ -79,6 +84,7 @@ async def parse_script_to_sse_events(
                 data, segment_order, segment_title, duration_seconds,
                 total_segments, is_last_segment=is_last_segment,
                 session_id=session_id, from_chunk=from_chunk,
+                emit_terminal_events=emit_terminal_events,
             ):
                 yield event
             return
@@ -90,6 +96,7 @@ async def parse_script_to_sse_events(
         script, segment_order, segment_title, duration_seconds,
         total_segments, is_last_segment=is_last_segment,
         session_id=session_id, from_chunk=from_chunk,
+        emit_terminal_events=emit_terminal_events,
     ):
         yield event
 
@@ -106,6 +113,7 @@ async def _parse_json_blocks(
     is_last_segment: bool,
     session_id: str,
     from_chunk: int,
+    emit_terminal_events: bool = True,
 ) -> AsyncGenerator[str, None]:
     """Parse structured block JSON and emit the full hierarchy of SSE events."""
 
@@ -329,15 +337,12 @@ async def _parse_json_blocks(
                             vh_payload: dict = {
                                 "type": "visual_hint",
                                 "text": hint_text,
-                                "readable_text": hint_text,
+                                "image_url": hint_image_url,
                                 "chunk": chunk,
                             }
-                            if hint_image_url:
-                                vh_payload["image_url"] = hint_image_url
                             yield _emit(vh_payload)
-                        # NOTE: No longer emitting a duplicate text chunk with is_visual_hint=True.
-                        # The frontend now uses readable_text on the visual_hint chunk itself
-                        # to do word-by-word streaming before rendering the rich card.
+                        # Visual hints are image generation prompts — not spoken by TTS.
+                        # The image_ready event delivers the generated image URL later.
                         chunk += 1
                         if chunk >= from_chunk:
                             yield _emit({"type": "pause", "duration": 400, "chunk": chunk})
@@ -368,13 +373,14 @@ async def _parse_json_blocks(
         await asyncio.sleep(0)
 
     # ── segment_end ───────────────────────────────────────────────────
-    chunk += 1
-    yield _emit({"type": "segment_end", "segment_order": segment_order, "chunk": chunk})
-
-    # ── session_end (last segment only) ──────────────────────────────
-    if is_last_segment:
+    if emit_terminal_events:
         chunk += 1
-        yield _emit({"type": "session_end", "session_id": session_id, "chunk": chunk})
+        yield _emit({"type": "segment_end", "segment_order": segment_order, "chunk": chunk})
+
+        # ── session_end (last segment only) ──────────────────────────────
+        if is_last_segment:
+            chunk += 1
+            yield _emit({"type": "session_end", "session_id": session_id, "chunk": chunk})
 
 
 # ── LEGACY: speech-text parser (kept for backward compatibility) ──────────────
@@ -389,6 +395,7 @@ async def _parse_legacy_script(
     is_last_segment: bool,
     session_id: str,
     from_chunk: int,
+    emit_terminal_events: bool = True,
 ) -> AsyncGenerator[str, None]:
     """Parse a speech-first text script and emit legacy-format SSE events."""
 
@@ -477,10 +484,11 @@ async def _parse_legacy_script(
                         await asyncio.sleep(0)
 
     # segment_end
-    chunk += 1
-    yield _emit({"type": "segment_end", "segment_order": segment_order, "chunk": chunk})
-
-    if is_last_segment:
+    if emit_terminal_events:
         chunk += 1
-        yield _emit({"type": "session_end", "session_id": session_id, "chunk": chunk})
+        yield _emit({"type": "segment_end", "segment_order": segment_order, "chunk": chunk})
+
+        if is_last_segment:
+            chunk += 1
+            yield _emit({"type": "session_end", "session_id": session_id, "chunk": chunk})
 

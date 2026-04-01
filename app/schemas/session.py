@@ -115,6 +115,7 @@ class SegmentResponse(BaseModel):
     animation_cues: Optional[dict] = None
     whiteboard_cues: Optional[dict] = None
     key_points: Optional[list] = None
+    visuals_ready: bool = False
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     created_at: datetime

@@ -65,3 +65,18 @@ class SessionContentResponse(BaseModel):
     animations: list[AnimationResponse] = []
     whiteboards: list[WhiteboardResponse] = []
     notes: Optional[SessionNotesResponse] = None
+
+
+class SegmentNoteItem(BaseModel):
+    """A single note (user or AI) from the frontend."""
+    title: Optional[str] = None
+    text: str
+    type: str  # "user" | "ai"
+    block_title: Optional[str] = None
+
+
+class SegmentNotesConsolidateRequest(BaseModel):
+    """Request to persist merged notes for a completed segment."""
+    segment_order: int
+    segment_title: Optional[str] = None
+    notes: list[SegmentNoteItem]

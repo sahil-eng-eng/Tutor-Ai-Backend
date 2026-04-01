@@ -64,8 +64,13 @@ class VisualHintLocation:
 
 # ── Public helpers ─────────────────────────────────────────────────────
 
-def collect_visual_hints(content_script: dict) -> list[VisualHintLocation]:
-    """Walk blocks → sections → elements in order; return all visual_hint locations."""
+def collect_visual_hints(
+    content_script: dict, *, only_missing: bool = False
+) -> list[VisualHintLocation]:
+    """Walk blocks → sections → elements in order; return all visual_hint locations.
+
+    If *only_missing* is True, skip hints that already have an ``image_url``.
+    """
     hints: list[VisualHintLocation] = []
     for block in content_script.get("blocks", []):
         block_id = block.get("id", "")
@@ -73,6 +78,8 @@ def collect_visual_hints(content_script: dict) -> list[VisualHintLocation]:
         for si, section in enumerate(block.get("sections", [])):
             for ei, element in enumerate(section.get("elements", [])):
                 if element.get("type") == "visual_hint":
+                    if only_missing and element.get("image_url"):
+                        continue
                     hints.append(VisualHintLocation(
                         block_id=block_id,
                         block_title=block_title,
@@ -130,17 +137,20 @@ async def _generate_single_image(prompt: str) -> Optional[str]:
     4. Return the image URL or None on timeout / error
     """
     if not settings.NANOBANANA_ENABLED:
+        print('Nano-banana disabled; skipping image gen')
         logger.debug("Nano-banana disabled; skipping image gen")
         return None
     if not settings.NANOBANANA_API_URL or not settings.NANOBANANA_API_KEY:
+        print('Nano-banana URL or API key not configured; skipping image gen')
         logger.debug("Nano-banana URL or API key not configured; skipping image gen")
         return None
     if not settings.NANOBANANA_CALLBACK_BASE_URL:
+        print('Nano-banana callback URL not configured; skipping image gen')
         logger.warning("NANOBANANA_CALLBACK_BASE_URL not set; cannot receive callbacks. Skipping image gen.")
         return None
 
     callback_url = f"{settings.NANOBANANA_CALLBACK_BASE_URL.rstrip('/')}/api/v1/images/callback"
-
+    print('Sending image generation request to nano-banana with prompt:', callback_url)
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
@@ -159,6 +169,7 @@ async def _generate_single_image(prompt: str) -> Optional[str]:
             )
             resp.raise_for_status()
             data = resp.json()
+            print('Nano-banana response:', data)
 
         # Extract taskId from immediate response: {code: 200, data: {taskId: "..."}}
         task_id = (data.get("data") or {}).get("taskId")
@@ -167,7 +178,7 @@ async def _generate_single_image(prompt: str) -> Optional[str]:
             return None
 
         logger.info("Nano-banana accepted request — taskId=%s, waiting for callback…", task_id)
-
+        print('Nano-banana accepted request — taskId=', task_id, ', waiting for callback…')
         # Create a Future and register it for the callback to resolve
         loop = asyncio.get_running_loop()
         future: asyncio.Future[str] = loop.create_future()
@@ -177,6 +188,8 @@ async def _generate_single_image(prompt: str) -> Optional[str]:
             image_url: str = await asyncio.wait_for(
                 future, timeout=settings.NANOBANANA_TIMEOUT_SECONDS,
             )
+            print('------------------------------------')
+            print(image_url)
             return image_url
         except asyncio.TimeoutError:
             logger.warning("Timed out waiting for callback (taskId=%s)", task_id)
@@ -184,6 +197,7 @@ async def _generate_single_image(prompt: str) -> Optional[str]:
             return None
 
     except Exception:
+        print('--------------------------------------------------------------------')
         logger.exception("Nano-banana image generation failed for prompt (first 80 chars): %s", prompt[:80])
         return None
 
@@ -221,11 +235,14 @@ async def fire_image_generation(
     moving to the next hint.  As each image resolves, the URL is written into
     the in-memory content_script and persisted to the DB.
 
+    Hints that already have an ``image_url`` are skipped (idempotent re-runs
+    are safe and avoid duplicate nano-banana API calls).
+
     If *image_ready_queue* is provided, ``(block_id, image_url)`` tuples are
     pushed onto it so the SSE streaming generator can emit ``image_ready``
     events to the frontend in real-time.
     """
-    hints = collect_visual_hints(content_script)
+    hints = collect_visual_hints(content_script, only_missing=True)
     if not hints:
         return
 
