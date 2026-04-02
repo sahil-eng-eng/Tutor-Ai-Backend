@@ -58,6 +58,7 @@ async def parse_script_to_sse_events(
     session_id: str = "",
     from_chunk: int = 0,
     emit_terminal_events: bool = True,
+    hinglish_map: dict[str, str] | None = None,
 ) -> AsyncGenerator[str, None]:
     """
     Parse a saved content_script and yield fully-formatted SSE ``data: {…}\\n\\n`` strings.
@@ -85,6 +86,7 @@ async def parse_script_to_sse_events(
                 total_segments, is_last_segment=is_last_segment,
                 session_id=session_id, from_chunk=from_chunk,
                 emit_terminal_events=emit_terminal_events,
+                hinglish_map=hinglish_map,
             ):
                 yield event
             return
@@ -114,6 +116,7 @@ async def _parse_json_blocks(
     session_id: str,
     from_chunk: int,
     emit_terminal_events: bool = True,
+    hinglish_map: dict[str, str] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Parse structured block JSON and emit the full hierarchy of SSE events."""
 
@@ -155,13 +158,16 @@ async def _parse_json_blocks(
             # ── section_start ─────────────────────────────────────────
             chunk += 1
             if chunk >= from_chunk:
-                yield _emit({
+                _section_evt: dict = {
                     "type": "section_start",
                     "heading": heading,
                     "importance": importance,
                     "readable_text": heading,
                     "chunk": chunk,
-                })
+                }
+                if hinglish_map and heading in hinglish_map:
+                    _section_evt["hinglish"] = hinglish_map[heading]
+                yield _emit(_section_evt)
             await asyncio.sleep(0)
 
             elements = section.get("elements", [])
@@ -175,7 +181,10 @@ async def _parse_json_blocks(
                     if content:
                         chunk += 1
                         if chunk >= from_chunk:
-                            yield _emit({"type": "text", "value": content, "readable_text": content, "chunk": chunk})
+                            _text_evt: dict = {"type": "text", "value": content, "readable_text": content, "chunk": chunk}
+                            if hinglish_map and content in hinglish_map:
+                                _text_evt["hinglish"] = hinglish_map[content]
+                            yield _emit(_text_evt)
                             await asyncio.sleep(0)
                         chunk += 1
                         if chunk >= from_chunk:
@@ -192,7 +201,10 @@ async def _parse_json_blocks(
                             item_text = str(item).strip()
                             chunk += 1
                             if chunk >= from_chunk:
-                                yield _emit({"type": "list_item", "value": item_text, "readable_text": item_text, "chunk": chunk})
+                                _li_evt: dict = {"type": "list_item", "value": item_text, "readable_text": item_text, "chunk": chunk}
+                                if hinglish_map and item_text in hinglish_map:
+                                    _li_evt["hinglish"] = hinglish_map[item_text]
+                                yield _emit(_li_evt)
                                 await asyncio.sleep(0)
                             chunk += 1
                             if chunk >= from_chunk:
@@ -303,14 +315,17 @@ async def _parse_json_blocks(
                         readable = f"Here is a question. {q_text} {opts_readable}."
                         chunk += 1
                         if chunk >= from_chunk:
-                            yield _emit({
+                            _q_evt: dict = {
                                 "type": "question",
                                 "question": q_text,
                                 "options": q_opts,
                                 "answer": q_ans,
                                 "readable_text": readable,
                                 "chunk": chunk,
-                            })
+                            }
+                            if hinglish_map and readable in hinglish_map:
+                                _q_evt["hinglish"] = hinglish_map[readable]
+                            yield _emit(_q_evt)
                         chunk += 1
                         if chunk >= from_chunk:
                             yield _emit({"type": "pause", "duration": 500, "chunk": chunk})

@@ -106,10 +106,9 @@ async def _background_prefetch_segment(
                         if isinstance(script_data, dict) and "blocks" in script_data:
                             from app.services.image_generation_service import fire_image_generation
                             await fire_image_generation(session_id, segment_order, script_data)
-                            # Re-read to pick up image URLs
-                            fresh = await service._read_fresh_content_script(session_id, segment_order)
-                            if fresh:
-                                target.content_script = fresh
+                            # Write enriched dict directly (avoids transaction
+                            # isolation issues with _persist_content_script)
+                            target.content_script = json.dumps(script_data, ensure_ascii=False)
                         target.visuals_ready = True
                         await db.commit()
                     except (json.JSONDecodeError, TypeError, ValueError):
@@ -140,18 +139,21 @@ async def _background_prefetch_segment(
                 return
 
             target.content_script = content
-            await db.flush()
             logger.info(
                 "Prefetch content ready: segment %d (%d chars)", segment_order, len(content)
             )
 
             # Await image generation for the prefetched segment's visual_hints
             # (blocking — ensures visuals_ready is set before we return)
+            # NOTE: Do NOT flush() before fire_image_generation — flushing acquires
+            # a row lock that _persist_content_script (inside fire_image_generation)
+            # cannot obtain, causing an application-level deadlock.
             try:
                 script_data = json.loads(content)
                 if isinstance(script_data, dict) and "blocks" in script_data:
                     from app.services.image_generation_service import fire_image_generation
                     await fire_image_generation(session_id, segment_order, script_data)
+                    target.content_script = json.dumps(script_data, ensure_ascii=False)
             except (json.JSONDecodeError, TypeError, ValueError):
                 pass
 
@@ -504,11 +506,17 @@ class SessionService:
                         session.id, 1, script_data,
                         image_ready_queue=None,
                     )
-                    # Re-read the persisted content_script (fire_image_generation
-                    # writes image_url values via _persist_content_script)
-                    fresh = await self._read_fresh_content_script(session.id, 1)
-                    if fresh:
-                        seg1.content_script = fresh
+                    # fire_image_generation modifies script_data dict in-place,
+                    # writing image_url into each visual_hint element.
+                    # Write the enriched dict back directly — do NOT rely on
+                    # _persist_content_script or _read_fresh_content_script
+                    # because the segment row is not yet committed (flush ≠ commit)
+                    # so independent DB sessions cannot see or lock it.
+                    seg1.content_script = json.dumps(script_data, ensure_ascii=False)
+                    logger.info(
+                        "Segment 1 images generated and written to content_script "
+                        "(%d chars)", len(seg1.content_script),
+                    )
                 seg1.visuals_ready = True
                 await self._db.flush()
             except (json.JSONDecodeError, TypeError, ValueError):
@@ -590,7 +598,10 @@ class SessionService:
                             f"<pause:300ms> We'll cover: "
                             f"{', '.join(target_seg.key_points or ['the key concepts'])}."
                         )
-                    await self._db.flush()
+                    # NOTE: Do NOT flush() here — flushing acquires a row lock
+                    # that _persist_content_script (inside fire_image_generation
+                    # below) cannot obtain, causing an application-level deadlock.
+                    # The content will be persisted by the flush after image gen.
 
                 # Fallback: generate images synchronously if still missing
                 if not target_seg.visuals_ready and target_seg.content_script:
@@ -602,6 +613,8 @@ class SessionService:
                                 session.id, segment_order, script_data,
                                 image_ready_queue=None,
                             )
+                            # Write enriched dict directly
+                            target_seg.content_script = json.dumps(script_data, ensure_ascii=False)
                     except (json.JSONDecodeError, TypeError, ValueError):
                         pass
                     target_seg.visuals_ready = True
@@ -674,6 +687,16 @@ class SessionService:
         # ── Stream the saved script as structured SSE events ────────
         # Terminal events (segment_end, session_end) are suppressed —
         # we emit them after draining image_ready events below.
+
+        # ── Hinglish conversion (if applicable) ────────────────────
+        hinglish_map = None
+        if session.language == "hinglish" and target_seg.content_script:
+            from app.utils.hinglish_converter import get_hinglish_map
+            hinglish_map = await get_hinglish_map(
+                target_seg.content_script,
+                model=session.ai_model_used or "gpt-4o-mini",
+            )
+
         async for event_str in parse_script_to_sse_events(
             script=target_seg.content_script,
             segment_order=segment_order,
@@ -684,6 +707,7 @@ class SessionService:
             session_id=str(session.id),
             from_chunk=from_chunk,
             emit_terminal_events=False,
+            hinglish_map=hinglish_map,
         ):
             yield event_str
             # After each SSE event, drain any image_ready items that arrived
@@ -1257,9 +1281,12 @@ class SessionService:
                 pass
 
         # Build the structured-JSON–specific system prompt
+        # When language is "hinglish", generate content in English —
+        # Hinglish conversion is applied separately during SSE streaming.
+        script_language = "english" if session.language == "hinglish" else session.language
         structured_system_prompt = compose_structured_teaching_system_prompt(
             tutor_name=tutor_name,
-            language=session.language,
+            language=script_language,
             user_type=(
                 session.user.user_type.value
                 if session.user
